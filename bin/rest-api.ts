@@ -1,52 +1,54 @@
 #!/usr/bin/env node
-import 'source-map-support/register';
-import * as cdk from 'aws-cdk-lib';
-import { RestAPIStack } from '../lib/rest-api-stack';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import { Stack, StackProps } from '@aws-cdk/core';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { Stack, Construct, StackProps } from '@aws-cdk/core';
+import { RestApi, LambdaIntegration, Resource, MethodOptions } from '@aws-cdk/aws-apigateway';
+import * as lambda from '@aws-cdk/aws-lambda';
 
 export class NewEndpointStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
-    // Define a Lambda function
-    const handler = new lambda.Function(this, 'CrewHandler', {
-      runtime: lambda.Runtime.NODEJS_16_X,
+
+    // Define Lambda function
+    const handler = new lambda.Function(this, 'MyLambdaFunction', {
+      runtime: lambda.Runtime.NODEJS_14_X,
       handler: 'index.handler',
-      code: lambda.Code.fromAsset('lambda'), // assuming your Lambda code is in a folder named 'lambda'
+      code: lambda.Code.fromAsset('path/to/your/lambda/code')
     });
 
-    // Define an API Gateway REST API
-    const api = new apigateway.RestApi(this, 'CrewAPI', {
-      restApiName: 'Crew Service',
-      description: 'This service serves crew information for movies.',
-    });
+    // Create REST API
+    const api = new RestApi(this, 'MyRestApi');
 
-  
-    const getCrewIntegration = new apigateway.LambdaIntegration(handler);
-    const crew = api.root.addResource('crew');
-    const role = crew.addResource('{role}');
-    const movies = role.addResource('movies');
-    const movieId = movies.addResource('{movieId}');
-    movieId.addMethod('GET', new apigateway.LambdaIntegration(handler));
+    // Define request parameters
+    const role = api.root.addResource('crew');
+    const roleId = role.addResource('{roleId}');
+    const movie = roleId.addResource('movies');
+    const movieId = movie.addResource('{movieId}');
+
+    // Define GET method with query string
+    const queryStringOptions: MethodOptions = {
+      requestParameters: {
+        'method.request.querystring.name': true
+      }
+    };
+
+    const integration = new LambdaIntegration(handler);
+    movieId.addMethod('GET', integration, queryStringOptions);
   }
 }
 
+// Lambda function handler
+export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  // Parse query parameters
+  const queryStringParameters = event.queryStringParameters;
+  const subString = queryStringParameters?.name;
 
-const app = new cdk.App();
-new NewEndpointStack(app, 'NewEndpointStack');
-new RestAPIStack(app, 'RestAPIStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
+  // Logic to filter results based on substring
+  // This logic depends on how your data is structured and accessed
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  env: { region: 'eu-west-1' },
+  // Return response
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: 'Request processed successfully' })
+  };
+}
 
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
-});
